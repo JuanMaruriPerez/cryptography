@@ -1,9 +1,10 @@
 from typing import Union
 from cryptography.hazmat.primitives import hashes
-from cryptography.exceptions import InvalidKey
 from cryptography.hazmat.primitives.kdf import KeyDerivationFunction
+from cryptography.hazmat.primitives import hmac
+from cryptography.exceptions import InvalidKey
 
-class HybridHASH(KeyDerivationFunction):
+class HybridHMAC(KeyDerivationFunction):
     def __init__(
         self,
         algorithm: hashes.HashAlgorithm,
@@ -11,7 +12,8 @@ class HybridHASH(KeyDerivationFunction):
         key_material2: bytes,
         length: int,
         salt: Union[bytes, None] = None,
-        operation: str = "concat"
+        operation: str = "concat",
+        secret_key: Union[bytes, None] = None
     ):
         # Verificar que `algorithm` es una instancia de `HashAlgorithm`
         if not isinstance(algorithm, hashes.HashAlgorithm):
@@ -29,8 +31,13 @@ class HybridHASH(KeyDerivationFunction):
 
         # Si no se pasa un salt, usar uno por defecto
         if salt is None:
-            salt = b"" 
+            salt = b""
         self._salt = salt
+
+        # Si no se pasa una clave secreta, usar un valor vacío
+        if secret_key is None:
+            secret_key = b""
+        self._secret_key = secret_key
 
         if self._operation not in ["concat", "xor"]:
             raise ValueError("La operación debe ser 'concat' o 'xor'.")
@@ -38,30 +45,28 @@ class HybridHASH(KeyDerivationFunction):
         if operation == "xor" and len(key_material1) != len(key_material2):
             raise ValueError("Las cadenas key_material1 y key_material2 deben tener la misma longitud para la operación XOR.")
 
-
     def _apply_operation(self) -> bytes:
-            if self._operation == "concat":
-                # Concatenar key_material1 || salt || key_material2
-                return self._key_material1 + self._salt + self._key_material2
-            elif self._operation == "xor":
-                # Asegurarse de que key_material1 y key_material2 tengan la misma longitud
-                min_length = min(len(self._key_material1), len(self._key_material2))
-                xor_result = bytes(
-                    a ^ b for a, b in zip(self._key_material1[:min_length], self._key_material2[:min_length])
-                )
-                return xor_result + self._salt
-            else:
-                raise ValueError("Operación desconocida.")
-
-
+        if self._operation == "concat":
+            # Concatenar key_material1 || salt || key_material2
+            return self._key_material1 + self._salt + self._key_material2
+        elif self._operation == "xor":
+            # Asegurarse de que key_material1 y key_material2 tengan la misma longitud
+            min_length = min(len(self._key_material1), len(self._key_material2))
+            xor_result = bytes(
+                a ^ b for a, b in zip(self._key_material1[:min_length], self._key_material2[:min_length])
+            )
+            return xor_result + self._salt
+        else:
+            raise ValueError("Operación desconocida.")
 
     def derive(self) -> bytes:
-        # Operar material criptografico
+        # Operar material criptográfico
         data = self._apply_operation()
-        # Aplicar hash sobre la concatenación
-        hash_obj = hashes.Hash(self._algorithm)
-        hash_obj.update(data)
-        derived_key = hash_obj.finalize()
+
+        # Aplicar HMAC con la clave secreta
+        hmac_obj = hmac.HMAC(self._secret_key, self._algorithm)
+        hmac_obj.update(data)
+        derived_key = hmac_obj.finalize()
 
         # Truncar a la longitud deseada
         return derived_key[:self._length]
