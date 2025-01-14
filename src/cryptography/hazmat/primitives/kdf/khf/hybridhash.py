@@ -27,7 +27,7 @@ class HybridHASH(KeyDerivationFunction):
         if length > self._algorithm.digest_size:
             raise ValueError(f"Requested length exceeds the maximum length of {self._algorithm.digest_size} bytes")
 
-        # Si no se pasa un salt, usar uno por defecto
+        # Si no se pasa un salt, cadena vacia por defecto
         if salt is None:
             salt = b"" 
         self._salt = salt
