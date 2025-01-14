@@ -11,7 +11,7 @@ class HybridHASH(KeyDerivationFunction):
         key_material2: bytes,
         length: int,
         salt: Union[bytes, None] = None,
-        operation: str = "concat"
+        operation: str = "concat" # Concatenacion como default operation
     ):
         # Verificar que `algorithm` es una instancia de `HashAlgorithm`
         if not isinstance(algorithm, hashes.HashAlgorithm):
@@ -32,13 +32,15 @@ class HybridHASH(KeyDerivationFunction):
             salt = b"" 
         self._salt = salt
 
+        # Comprobar operacion soportada
         if self._operation not in ["concat", "xor"]:
             raise ValueError("La operación debe ser 'concat' o 'xor'.")
 
+        # XOR se hace con cadenas de la misma longitud
         if operation == "xor" and len(key_material1) != len(key_material2):
             raise ValueError("Las cadenas key_material1 y key_material2 deben tener la misma longitud para la operación XOR.")
 
-
+    # Operacion simple de combinacion de cadenas y salt
     def _apply_operation(self) -> bytes:
             if self._operation == "concat":
                 # Concatenar key_material1 || salt || key_material2
@@ -49,14 +51,14 @@ class HybridHASH(KeyDerivationFunction):
                 xor_result = bytes(
                     a ^ b for a, b in zip(self._key_material1[:min_length], self._key_material2[:min_length])
                 )
+                # Se concatena salt al resultado de la operacion salt
                 return xor_result + self._salt
             else:
                 raise ValueError("Operación desconocida.")
 
 
-
+    # Operar material criptografico
     def derive(self) -> bytes:
-        # Operar material criptografico
         data = self._apply_operation()
         # Aplicar hash sobre la concatenación
         hash_obj = hashes.Hash(self._algorithm)
